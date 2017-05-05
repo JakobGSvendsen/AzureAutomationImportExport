@@ -35,7 +35,7 @@ Function Get-RunbookAssets {
     $Assets = @()
     #Check each line to find child runbooks
     Foreach ($Line in $RunbookContent) {
-         if($Line -match "Get-(Automation\w+) .*[`"']{1}(.+)[`"']{1}")
+         if($Line -match "Get-(Automation\w+) .*['`"]{1}(.+)['`"]{1}")
          {
             #Rename PSCredentials as the cmdlet does not have same name (so much for consistency)
             if($Matches[1] -eq "AutomationPSCredential") { 
@@ -111,7 +111,8 @@ Function Export-ScriptRunbook {
                    ValueFromPipeline=$true,
                    ValueFromPipelineByPropertyName=$true,
                    Position=3)]
-    $OutputFolder
+    $OutputFolder,
+    $ExportedChilds
     )
 
 
@@ -121,7 +122,7 @@ Function Export-ScriptRunbook {
 
     Write-Host "Exporting $RunbookName"
 
-    $Runbook = Get-AzureRmAutomationRunbook -Name $RunbookName -ResourceGroupName $RGName -AutomationAccountName $AutomationAccountName
+    $Runbook = Get-AzureRmAutomationRunbook -Name $RunbookName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
     if(!$Runbook) { throw "Runbook $RunbookName not found" }
 
     if(!(Test-Path (Join-Path $OutputFolder "PS1"))) {mkdir (Join-Path $OutputFolder "PS1") | Out-Null}
@@ -129,11 +130,11 @@ Function Export-ScriptRunbook {
     #Export draft if it is in edit mode
     $ContentDraft = ""
     if($Runbook.State -eq "Edit") {
-        $ContentDraft = Get-RunbookContent -RunbookName $RunbookName -ResourceGroupName $RGName -AutomationAccountName $AutomationAccountName -Slot Draft
+        $ContentDraft = Get-RunbookContent -RunbookName $RunbookName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Slot Draft
         $ContentDraft | Out-File -FilePath (Join-Path $OutputFolder "ps1\$RunbookName-draft.ps1") -Force
     }
 
-    $ContentPublished = Get-RunbookContent -RunbookName $RunbookName -ResourceGroupName $RGName -AutomationAccountName $AutomationAccountName -Slot Published
+    $ContentPublished = Get-RunbookContent -RunbookName $RunbookName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Slot Published
     $ContentPublished | Out-File -FilePath (Join-Path $OutputFolder "ps1\$RunbookName.ps1") -Force
 
     # Build XML Definition for Export
@@ -200,12 +201,12 @@ Function Export-ScriptRunbook {
 
     #WEBHOOKS NOT IMPLEMENTED
 
-    $AssetsDraft = Get-RunbookAssets -RunbookContent $ContentDraft -ResourceGroupName $RGName -AutomationAccountName $AutomationAccountName
+    $AssetsPublished = Get-RunbookAssets -RunbookContent $ContentDraft -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
     if(![String]::IsNullOrEmpty($AssetsPublished)) {    
         $XMLExportFile.Runbook.Draft.Assets = [String]($AssetsDraft  | select-object Type, Name, Encrypted, Value, Description | ConvertTo-Json)
     }
 
-    $AssetsPublished = Get-RunbookAssets -RunbookContent $ContentPublished -ResourceGroupName $RGName -AutomationAccountName $AutomationAccountName
+    $AssetsPublished = Get-RunbookAssets -RunbookContent $ContentPublished -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
     if(![String]::IsNullOrEmpty($AssetsPublished)) {
         $XMLExportFile.Runbook.Published.Assets = [String]($AssetsDraft | select-object Type, Name, Encrypted, Value, Description  | ConvertTo-Json)
     }
@@ -217,9 +218,83 @@ Function Export-ScriptRunbook {
     {
         #Published 
         $RunbookChilds = Get-RunbookChildScripts -RunbookContent $ContentPublished | Sort-Object -Unique
+
+        if($null -eq $ExportedChilds) { 
+            $ExportedChilds = @()
+        }
+
         Foreach($Child in $RunbookChilds)
         {
-            Export-ScriptRunbook -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -RunbookName $Child -OutputFolder $OutputFolder
+            if($ExportedChilds -notcontains $Child)
+            {
+            $ExportedChilds += $Child
+            Export-ScriptRunbook -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -RunbookName $Child -OutputFolder $OutputFolder -ExportedChilds $ExportedChilds
+            }
         }
     }
 }
+
+
+
+Function Import-ScriptRunbook {
+    param(
+    [Parameter(Mandatory=$true,
+                   ValueFromPipelineByPropertyName=$true,
+                   Position=0)]
+    $ResourceGroupName,
+    [Parameter(Mandatory=$true,
+                   ValueFromPipelineByPropertyName=$true,
+                   Position=0)]
+    $AutomationAccountName,
+    $RunbookXMLPath
+    )
+
+    $RunbookXML = [XML](Get-Content $RunbookXMLPath)
+
+    #Export runbook to temp dir and get content    
+    $TempDir = Join-Path $env:TEMP "$AutomationAccountName\$RunbookName$((Get-Date).ToString("yyyyMMddttmmss"))"
+    if(!(Test-PAth $TempDir)) {mkdir $TempDir | Out-Null}
+
+
+    #Set name
+    $Name = $RunbookXML.Runbook.Name
+
+    #Export definition
+    $TempFilePath = (Join-Path $TempDir "$Name.PS1")
+    $RunbookXML.Runbook.Published.Definition | Out-File $TempFilePath
+
+    #$Tags = $RunbookXML.Runbook.Tags | ConvertFrom-JSON
+    $Tags = $null
+    $Splat = @{
+        ResourceGroupName =$ResourceGroupName
+        AutomationAccountName =$AutomationAccountName
+        Name = $Name
+        Path = $TempFilePath
+        Description = $RunbookXML.Runbook.Configuration.Description
+        Tags = $Tags
+        LogProgress = [Boolean]$RunbookXML.Runbook.Configuration.LogProgress
+        LogVerbose = [Boolean]$RunbookXML.Runbook.Configuration.LogVerbose
+    }
+
+    Import-AzureRmAutomationRunbook  @splat -Type PowerShell  -Published 
+    Remove-Item $TempDir -Force -Recurse | Out-Null
+
+
+    #Import Runbook Assets
+    #create dummy credential for use when crreating credential assets as real credential was not exportred
+    $username = "domain\admin"
+    $password = "password" | ConvertTo-SecureString -AsPlainText -Force
+    $CredDummy =  New-Object -typename System.Management.Automation.PSCredential -argumentlist $username, $password
+    #Published
+    $Assets = $RunbookXML.Runbook.Published.Assets | ConvertFrom-Json
+
+    Foreach ($Asset in $Assets)
+    {
+        Switch ($Asset.Type)
+        {
+           "AutomationCredential"  { New-AzureRmAutomationCredential -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Name $Asset.Name -Value $CredDummy}
+           "AutomationVariable"  { New-AzureRmAutomationVariable -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Name $Asset.Name -Value $Asset.Value -Encrypted $Asset.Encrypted }
+        }
+    }
+ }
+

@@ -1,23 +1,19 @@
-﻿#Made for Jgs@coretech.dk
+﻿#Made by jakob@runbook.guru
 
 $ResourceGroupName = "Automation"
 $AutomationAccountName = "CoretechAutomation"
-$PSDefaultParameterValues = @{
-"*AzureRMAutomation*:ResourceGroupName" = $ResourceGroupName
-"*AzureRMAutomation*:AutomationAccountName" = $AutomationAccountName
-}
+#Login-AzureRmAccount 
 
-Login-AzureRmAccount 
+cd "C:\Users\JGS\OneDrive\Git\Repos\AzureAutomationImportExport"
 
-cd "C:\Users\JGS\OneDrive\Events\2017 05 PowerShell Conference EU"
-
-Import-Module .\AzureAutomationImportExport.psm1
+Import-Module .\AzureAutomationImportExport
 
 #Export script runbook and child script runbooks (does not work in workflows!)
-$RunbookName = "Invoke-ServiceNowUpdate"
-#$RunbookName = "Handle-TwilioSMS"
-$OutputFolder = "C:\temp\AA\Export\$RunbookName"
+#$RunbookName = "Alert-UserLockedSMS"
 
+$RunbookName = "Enable-O365User"
+$OutputFolder = "C:\temp\AA\Export\$RunbookName"
+if(!(Test-PAth $OutputFolder)) {mkdir $OutputFolder | Out-Null}
 . Export-ScriptRunbook -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -RunbookName $RunbookName -OutputFolder $OutputFolder
 
 
