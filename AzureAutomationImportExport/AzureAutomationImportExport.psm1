@@ -201,14 +201,14 @@ Function Export-ScriptRunbook {
 
     #WEBHOOKS NOT IMPLEMENTED
 
-    $AssetsPublished = Get-RunbookAssets -RunbookContent $ContentDraft -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
-    if(![String]::IsNullOrEmpty($AssetsPublished)) {    
+    $AssetsDraft = Get-RunbookAssets -RunbookContent $ContentDraft -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
+    if(![String]::IsNullOrEmpty($AssetsDraft)) {    
         $XMLExportFile.Runbook.Draft.Assets = [String]($AssetsDraft  | select-object Type, Name, Encrypted, Value, Description | ConvertTo-Json)
     }
 
     $AssetsPublished = Get-RunbookAssets -RunbookContent $ContentPublished -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
     if(![String]::IsNullOrEmpty($AssetsPublished)) {
-        $XMLExportFile.Runbook.Published.Assets = [String]($AssetsDraft | select-object Type, Name, Encrypted, Value, Description  | ConvertTo-Json)
+        $XMLExportFile.Runbook.Published.Assets = [String]($AssetsPublished | select-object Type, Name, Encrypted, Value, Description  | ConvertTo-Json)
     }
 
     # Output Runbook from SMA
