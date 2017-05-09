@@ -138,7 +138,7 @@ Function Export-ScriptRunbook {
     $ContentPublished | Out-File -FilePath (Join-Path $OutputFolder "ps1\$RunbookName.ps1") -Force
 
     # Build XML Definition for Export
-    $TemplateSchema = @'
+ <#   $TemplateSchema = @'
 <?xml version="1.0" encoding="UTF-8"?>
 <Runbook>
     <Name></Name>
@@ -175,6 +175,43 @@ Function Export-ScriptRunbook {
     # Log values being converted to string to be supported by XML
     $XMLExportFile.Runbook.Configuration.LogVerbose = [string]$Runbook.LogVerbose
     $XMLExportFile.Runbook.Configuration.LogProgress = [string]$Runbook.LogProgress
+#>
+
+$Export = COnvertFrom-JSON @"
+{
+  "Runbook": {
+       "Name": "Test",
+        "Tags": "Test",
+        "Configuration": {
+            "Description": "Test",
+            "LogVerbose": false,
+            "LogProgress": false
+        },
+        "Published": {
+            "Definition": "TestPublished",
+            "Assets": ""
+        },
+        "Draft": {
+            "Definition": "TestDraft",
+            "Assets": ""
+        },
+        "Schedules": "",
+        "Webhooks": "" 
+    }  
+}
+"@
+
+   # Build node data for export to XML
+    $Export.Runbook.Name = "$RunbookName"
+    $Export.Runbook.Published.Definition = ($ContentPublished | Out-String).TosTring()
+    $Export.Runbook.Draft.Definition = ($ContentDraft  | Out-String).TosTring()
+    $Export.Runbook.Tags = $Runbook.Tags
+    $Export.Runbook.Configuration.Description = "$($Runbook.Description)"
+    # Log values being converted to string to be supported by XML
+    $Export.Runbook.Configuration.LogVerbose = $Runbook.LogVerbose
+    $Export.Runbook.Configuration.LogProgress = $Runbook.LogProgress
+    
+
 
     # SCHEDULES SECTION - NOT IMPLEMENTED
             # Export schedules (if -exportSchedules is specified) [Schedules defined per Runbook]
@@ -203,16 +240,17 @@ Function Export-ScriptRunbook {
 
     $AssetsDraft = Get-RunbookAssets -RunbookContent $ContentDraft -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
     if(![String]::IsNullOrEmpty($AssetsDraft)) {    
-        $XMLExportFile.Runbook.Draft.Assets = [String]($AssetsDraft  | select-object Type, Name, Encrypted, Value, Description | ConvertTo-Json)
+        $Export.Runbook.Draft.Assets = $AssetsDraft  | select-object Type, Name, Encrypted, Value, Description
     }
 
     $AssetsPublished = Get-RunbookAssets -RunbookContent $ContentPublished -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
     if(![String]::IsNullOrEmpty($AssetsPublished)) {
-        $XMLExportFile.Runbook.Published.Assets = [String]($AssetsPublished | select-object Type, Name, Encrypted, Value, Description  | ConvertTo-Json)
+        $Export.Runbook.Published.Assets = $AssetsPublished | select-object Type, Name, Encrypted, Value, Description
     }
 
     # Output Runbook from SMA
-    $XMLExportFile.Save("$OutputFolder\$RunbookName.xml")
+    $Export | ConvertTo-JSON | Out-file -FilePath "$OutputFolder\$RunbookName.json"
+
     $IncludeChilds = $true
     if($IncludeChilds)
     {
@@ -246,22 +284,21 @@ Function Import-ScriptRunbook {
                    ValueFromPipelineByPropertyName=$true,
                    Position=0)]
     $AutomationAccountName,
-    $RunbookXMLPath
+    $RunbookJSONPath
     )
 
-    $RunbookXML = [XML](Get-Content $RunbookXMLPath)
+    $Runbook = Get-Content $RunbookJSONPath | ConvertFrom-JSON
 
     #Export runbook to temp dir and get content    
     $TempDir = Join-Path $env:TEMP "$AutomationAccountName\$RunbookName$((Get-Date).ToString("yyyyMMddttmmss"))"
-    if(!(Test-PAth $TempDir)) {mkdir $TempDir | Out-Null}
-
-
+    if(!(Test-Path $TempDir)) {mkdir $TempDir | Out-Null}
+    
     #Set name
-    $Name = $RunbookXML.Runbook.Name
+    $Name = $Runbook.Runbook.Name
 
     #Export definition
     $TempFilePath = (Join-Path $TempDir "$Name.PS1")
-    $RunbookXML.Runbook.Published.Definition | Out-File $TempFilePath
+    $Runbook.Runbook.Published.Definition | Out-File $TempFilePath
 
     #$Tags = $RunbookXML.Runbook.Tags | ConvertFrom-JSON
     $Tags = $null
@@ -270,13 +307,13 @@ Function Import-ScriptRunbook {
         AutomationAccountName =$AutomationAccountName
         Name = $Name
         Path = $TempFilePath
-        Description = $RunbookXML.Runbook.Configuration.Description
+        Description = $Runbook.Runbook.Configuration.Description
         Tags = $Tags
-        LogProgress = [Boolean]$RunbookXML.Runbook.Configuration.LogProgress
-        LogVerbose = [Boolean]$RunbookXML.Runbook.Configuration.LogVerbose
+        LogProgress = [Boolean]$Runbook.Runbook.Configuration.LogProgress
+        LogVerbose = [Boolean]$Runbook.Runbook.Configuration.LogVerbose
     }
 
-    Import-AzureRmAutomationRunbook  @splat -Type PowerShell  -Published 
+    Import-AzureRmAutomationRunbook  @splat -Type PowerShell -Published 
     Remove-Item $TempDir -Force -Recurse | Out-Null
 
 
@@ -286,7 +323,7 @@ Function Import-ScriptRunbook {
     $password = "password" | ConvertTo-SecureString -AsPlainText -Force
     $CredDummy =  New-Object -typename System.Management.Automation.PSCredential -argumentlist $username, $password
     #Published
-    $Assets = $RunbookXML.Runbook.Published.Assets | ConvertFrom-Json
+    $Assets = $Runbook.Runbook.Published.Assets 
 
     Foreach ($Asset in $Assets)
     {
