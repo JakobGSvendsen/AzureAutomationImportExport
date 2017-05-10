@@ -180,19 +180,19 @@ Function Export-ScriptRunbook {
 $Export = COnvertFrom-JSON @"
 {
   "Runbook": {
-       "Name": "Test",
-        "Tags": "Test",
+       "Name": "",
+        "Tags": "",
         "Configuration": {
-            "Description": "Test",
+            "Description": "",
             "LogVerbose": false,
             "LogProgress": false
         },
         "Published": {
-            "Definition": "TestPublished",
+            "Definition": "",
             "Assets": ""
         },
         "Draft": {
-            "Definition": "TestDraft",
+            "Definition": "",
             "Assets": ""
         },
         "Schedules": "",
