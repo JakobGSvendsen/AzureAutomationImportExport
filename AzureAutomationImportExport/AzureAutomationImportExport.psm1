@@ -254,8 +254,8 @@ $Export = COnvertFrom-JSON @"
     }
 
     # Output Runbook from SMA
-    $Export | ConvertTo-JSON | Out-file -FilePath "$OutputFolder\$RunbookName.json"
-
+    $Export | ConvertTo-JSON -Depth 99 | Out-file -FilePath "$OutputFolder\$RunbookName.json"
+   
     $IncludeChilds = $true
     if($IncludeChilds)
     {
@@ -321,14 +321,13 @@ Function Import-ScriptRunbook {
     Import-AzureRmAutomationRunbook  @splat -Type PowerShell -Published 
     Remove-Item $TempDir -Force -Recurse | Out-Null
 
-
     #Import Runbook Assets
     #create dummy credential for use when crreating credential assets as real credential was not exportred
     $username = "domain\admin"
     $password = "password" | ConvertTo-SecureString -AsPlainText -Force
     $CredDummy =  New-Object -typename System.Management.Automation.PSCredential -argumentlist $username, $password
     #Published
-    $Assets = $Runbook.Runbook.Published.Assets 
+    $Assets = $Runbook.Runbook.Published.Assets
 
     Foreach ($Asset in $Assets)
     {
@@ -339,4 +338,3 @@ Function Import-ScriptRunbook {
         }
     }
  }
-

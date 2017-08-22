@@ -1,20 +1,22 @@
 ﻿#Made by jakob@runbook.guru
-
-$ResourceGroupName = "Automation"
-$AutomationAccountName = "CoretechAutomation"
 #Login-AzureRmAccount 
+
+$ResourceGroupName = "OMS-RG"
+$AutomationAccountName = "Automation"
 
 cd "C:\Users\JGS\OneDrive\Git\Repos\AzureAutomationImportExport"
 
 Import-Module .\AzureAutomationImportExport
 
 #Export script runbook and child script runbooks (does not work in workflows!)
-#$RunbookName = "Alert-UserLockedSMS"
 
 $RunbookName = "Enable-O365User"
-$OutputFolder = "C:\temp\AA\Export\$RunbookName"
+$OutputFolder = "C:\Temp\ELEU\$RunbookName"
 if(!(Test-PAth $OutputFolder)) {mkdir $OutputFolder | Out-Null}
 . Export-ScriptRunbook -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -RunbookName $RunbookName -OutputFolder $OutputFolder
 
-
+break
 Remove-Module AzureAutomationImportExport
+
+Get-ChildItem -Path $FolderPath | gm
+Get-ChildItem -Path $FolderPath | where-object { $_ -is [System.IO.FileInfo] }

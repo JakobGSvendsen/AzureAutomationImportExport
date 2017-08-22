@@ -1,21 +1,25 @@
-﻿#Made for Jakob@runbook.guru
+﻿#Made by Jakob@runbook.guru
 #Login-AzureRmAccount 
 
-$ResourceGroupName = "OMS-RG"
-$AutomationAccountName = "Automation"
+$ResourceGroupName = "DemoAutomation"
+$AutomationAccountName = "DemoAutomation"
 
 cd "C:\Users\JGS\OneDrive\Git\Repos\AzureAutomationImportExport"
 Import-Module .\AzureAutomationImportExport
 
-#import Single
-$RunbookXMLPath = "C:\Temp\AA\Export\Enable-O365User\Enable-O365User.json"
-. Import-ScriptRunbook -RunbookJSONPath $RunbookXMLPath -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
-break
 #Import Folder
-$FolderPath = "C:\Temp\AA\Export\Enable-O365User"
+$FolderPath = "C:\Temp\ELEU\Enable-O365User"
 foreach($File in (Dir "$FolderPath\*.json"))
 {
-    Import-ScriptRunbook -RunbookXMLPath $File.FullName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
+    Import-ScriptRunbook -RunbookJSONPath $File.FullName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
 }
+break
 
+#import Single
+#$RunbookXMLPath = "C:\Temp\ELEU\Remove-O365AdminAccess\Remove-O365AdminAccess.json"
+#. Import-ScriptRunbook -RunbookJSONPath $RunbookXMLPath -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
+
+#Cleanup
 Remove-Module AzureAutomationImportExport
+Remove-AzureRmAutomationAccount -ResourceGroupName "DemoAutomation" -AutomationAccountName "DemoAutomation" -Force
+New-AzureRmAutomationAccount -ResourceGroupName "DemoAutomation" -AutomationAccountName "DemoAutomation" -Location "West Europe"
