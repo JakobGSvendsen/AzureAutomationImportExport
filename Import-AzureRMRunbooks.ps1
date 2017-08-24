@@ -1,5 +1,5 @@
 ﻿#Made by Jakob@runbook.guru
-#Login-AzureRmAccount 
+Login-AzureRmAccount 
 
 $ResourceGroupName = "DemoAutomation"
 $AutomationAccountName = "DemoAutomation"
